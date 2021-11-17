@@ -2,7 +2,7 @@ import itertools
 import warnings
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import xlsxwriter
@@ -160,3 +160,54 @@ def count(
         writer.close()
 
     return dataframes_by_attribute, dataframes_by_combination
+
+
+class HMNL_Result:
+    """
+    Object to get the hmnl results.
+    A function to perform a basic count analysis on the dataset.
+
+    Init Parameters
+    ----------
+    stan_fit: pystan.StanFit4Model
+        Instance containing the fitted results from pystan.
+        Read pystan docs for further info on StanFit4Model methods
+
+    attributes: list()
+        Array of strs with the attributes.
+        e.g: ['Color', 'Size', 'Brand']
+
+    covariates: str
+        Array of strs with the covariates (attribute levels or conjoint parameters)
+
+    """
+
+    _summary: Dict = None
+    _individual_utilities: pd.DataFrame = None
+    _individual_importances: pd.DataFrame = None
+
+    def __init__(
+        self,
+        stan_fit: object,
+        attributes: List[str],
+        covariates: List[str],
+    ):
+        self.stan_fit = stan_fit
+        self.attributes = attributes
+        self.covariates = covariates
+
+    @property
+    def summary(self):
+        """
+        A function to get the summarized samples in all chains.
+
+        Returns
+        ----------
+        pystan.StanFit4Model summary() method -> Summarize samples (compute mean, SD, quantiles) in all chains.
+
+        """
+        if self._summary is not None:
+            return self._summary
+
+        self._summary = self.stan_fit.summary()
+        return self._summary
