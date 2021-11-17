@@ -216,37 +216,37 @@ class HMNL_Result:
         """
         A function to rearrange fit summary into a new dataframe with respondent as rows and covariates as columns.
         It also saves this data to self._individual_utilities
-        
+
         Returns
         ----------
         Dataframe with individual utilities.
         """
         K = self.stan_fit.data["K"]
         R = self.stan_fit.data["R"]
-        columns_by_k = {idx: self.covariates[idx] for idx in range(0,K)}
+        columns_by_k = {idx: self.covariates[idx] for idx in range(0, K)}
         summary = self.summary if self.summary is not None else self.stan_fit.summary()
-        
+
         utilities = pd.DataFrame(columns=self.covariates)
         respondent_utilities = {}
         k = 0
-        for i in range(0, K*R):
+        for i in range(0, K * R):
             utility = summary["summary"][i][0]
             covariate = columns_by_k[k]
             respondent_utilities[covariate] = utility
-            k+=1
-            if k==K:
-                k=0
+            k += 1
+            if k == K:
+                k = 0
                 utilities = utilities.append(respondent_utilities, ignore_index=True)
                 respondent_utilities = {}
-        
+
         self._individual_utilities = utilities
         return utilities
-    
+
     @property
     def individual_utilities(self):
         """
         A property to get the individual utilities.
-        
+
         Returns
         ----------
         Dataframe with individual utilities.
@@ -254,3 +254,40 @@ class HMNL_Result:
         if self._individual_utilities is not None:
             return self._individual_utilities
         return self.get_individual_utilities()
+
+    def get_individual_importances(self):
+        """
+        A function to get the individual importances per respondent with respondent as rows and attributes as columns.
+        
+        Returns
+        ----------
+        Dataframe with individual importances.
+        """
+        importances_df = pd.DataFrame(columns=self.attributes)
+        individual_utilities = self.individual_utilities
+        
+        utility_ranges = pd.DataFrame(columns=self.attributes)
+        for attribute in self.attributes:
+            attribute_covariates = [covariate for covariate in self.covariates if covariate.startswith(attribute)]
+            max_utility = individual_utilities[attribute_covariates].max(axis=1)
+            if len(attribute_covariates) == 1:
+                utility_ranges[attribute] = abs(max_utility)
+            else:
+                min_utility = individual_utilities[attribute_covariates].min(axis=1)
+                utility_ranges[attribute] = max_utility - min_utility
+        
+        self._individual_importances = (utility_ranges.div(utility_ranges.sum(axis=1), axis=0))
+        return self._individual_importances
+    
+    @property
+    def individual_importances(self):
+        """
+        A property to get the individual importances.
+        
+        Returns
+        ----------
+        Dataframe with individual importances.
+        """
+        if self._individual_importances is not None:
+            return self._individual_importances
+        return self.get_individual_importances()
