@@ -380,6 +380,7 @@ def hmnl(
     algorithm: str = "NUTS",
     seed: Optional[int] = None,
     verbose: bool = False,
+    control: Dict = None,
     n_jobs: int = -1,
 ):
     """
@@ -552,6 +553,7 @@ def hmnl(
         algorithm=algorithm,
         seed=seed,
         verbose=verbose,
+        control=control,
         n_jobs=n_jobs,
     )
     result = HMNL_Result(
