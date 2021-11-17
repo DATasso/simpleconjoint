@@ -166,6 +166,51 @@ def count(
     return dataframes_by_attribute, dataframes_by_combination
 
 
+def simulate_shares_with_individual_utilities(
+    individual_utilities: pd.DataFrame,
+    scenario: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    A function to simulate the share of preference with individual utilities.
+
+    Parameters
+    ----------
+    individual_utilities: pandas.DataFrame
+        Dataframe containing the individual utilities.
+
+    scenario: pandas.DataFrame
+        Dataframe for the scenario with alternatives to simulate.
+
+    Returns
+    ----------
+    scenario_result: pandas.Dataframe
+        scenario with the Exp(utility)
+    """
+    scenario_result = scenario.copy()
+    exp_utilities = []
+    for idx, row in scenario.iterrows():
+        scenario_alternative_utilities = individual_utilities * row
+        alternative_total_utilities = scenario_alternative_utilities.sum(axis=1)
+        alternative_exp_utilities = np.exp(alternative_total_utilities)
+        if idx == 0:
+            total_exp_utilities = np.array(alternative_exp_utilities)
+        else:
+            total_exp_utilities += np.array(alternative_exp_utilities)
+
+        exp_utilities.append(alternative_exp_utilities)
+
+    scenario_exp_utilities = []
+    for alternative_individual_utilities in exp_utilities:
+        scenario_exp_utility = alternative_individual_utilities / total_exp_utilities
+        scenario_exp_utilities.append(scenario_exp_utility.sum())
+
+    scenario_result["Exp(Utility)"] = scenario_exp_utilities
+    scenario_result["ShareOP"] = (
+        scenario_result["Exp(Utility)"] / scenario_result["Exp(Utility)"].sum()
+    )
+    return scenario_result
+
+
 class HMNL_Result:
     """
     Object to get the hmnl results.
