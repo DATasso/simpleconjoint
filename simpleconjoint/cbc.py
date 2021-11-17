@@ -184,7 +184,7 @@ def simulate_shares_with_individual_utilities(
     Returns
     ----------
     scenario_result: pandas.Dataframe
-        scenario with the Exp(utility)
+        Dataframe of scenario with the Exp(utility) and Share of Preference.
     """
     scenario_result = scenario.copy()
     exp_utilities = []
@@ -346,6 +346,24 @@ class HMNL_Result:
         if self._individual_importances is not None:
             return self._individual_importances
         return self.get_individual_importances()
+
+    def simulate_share_of_preference(self, scenario: pd.DataFrame):
+        """
+        A function to simulate the share of preference with the individual utilities .
+
+        Parameters
+        ----------
+        scenario: pandas.DataFrame
+            Dataframe for the scenario with alternatives to simulate.
+
+        Returns
+        ----------
+        pandas.Dataframe of scenario with the Exp(utility) and Share of Preference.
+        """
+        return simulate_shares_with_individual_utilities(
+            individual_utilities=self.individual_utilities,
+            scenario=scenario
+        )
 
 
 def hmnl(
