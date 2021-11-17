@@ -2,10 +2,14 @@ import itertools
 import warnings
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
+import pystan
 import xlsxwriter
+
+from simpleconjoint.constants import StanModels
 
 
 def count(
@@ -258,32 +262,38 @@ class HMNL_Result:
     def get_individual_importances(self):
         """
         A function to get the individual importances per respondent with respondent as rows and attributes as columns.
-        
+
         Returns
         ----------
         Dataframe with individual importances.
         """
         importances_df = pd.DataFrame(columns=self.attributes)
         individual_utilities = self.individual_utilities
-        
+
         utility_ranges = pd.DataFrame(columns=self.attributes)
         for attribute in self.attributes:
-            attribute_covariates = [covariate for covariate in self.covariates if covariate.startswith(attribute)]
+            attribute_covariates = [
+                covariate
+                for covariate in self.covariates
+                if covariate.startswith(attribute)
+            ]
             max_utility = individual_utilities[attribute_covariates].max(axis=1)
             if len(attribute_covariates) == 1:
                 utility_ranges[attribute] = abs(max_utility)
             else:
                 min_utility = individual_utilities[attribute_covariates].min(axis=1)
                 utility_ranges[attribute] = max_utility - min_utility
-        
-        self._individual_importances = (utility_ranges.div(utility_ranges.sum(axis=1), axis=0))
+
+        self._individual_importances = utility_ranges.div(
+            utility_ranges.sum(axis=1), axis=0
+        )
         return self._individual_importances
-    
+
     @property
     def individual_importances(self):
         """
         A property to get the individual importances.
-        
+
         Returns
         ----------
         Dataframe with individual importances.
@@ -291,3 +301,199 @@ class HMNL_Result:
         if self._individual_importances is not None:
             return self._individual_importances
         return self.get_individual_importances()
+
+
+def hmnl(
+    df: pd.DataFrame,
+    col_resp_id: str = "RespID",
+    col_task: str = "Task",
+    col_alternative: str = "Alt",
+    col_chosen: str = "Chosen",
+    col_none: Optional[str] = None,
+    respondent_covariates: int = 1,
+    iterations: int = 2000,
+    warmups: Optional[int] = None,
+    chains: int = 4,
+    algorithm: str = "NUTS",
+    seed: Optional[int] = None,
+    verbose: bool = False,
+    n_jobs: int = -1,
+):
+    """
+    A function to perform a cbc with a hierarchical multinomial logit model.
+
+    Parameters
+    ----------
+    df: A pandas dataframe with the conjoint info for the analysis.
+        Each attribute level is expected to have the attribute and a underscore as a prefix (or the attribute itself),
+            e.g: Color_Blue.
+        The level column should contain the number 1 if the attribute level was part of the alternative.
+        It also expect a column to check if the alternative was chosen or not ('Chosen' by default, 1 if it was chosen, 0 if not).
+
+    col_resp_id: str
+        Array of strs with the attributes.
+        e.g: ['Color', 'Size', 'Brand']
+
+    col_task: str
+        Name of the Task column. 'Task' by default.
+
+    col_alternative: str
+        Name of the Alternative column. 'Alternative' by default.
+
+    col_chosen: str
+        Name of the Chosen column, this column should contain 1 if the alternative was chosen and 0 if not.
+        'Chosen' by default.
+
+    col_none: str
+        Name of the None option column. Optional.
+        If no arg is given, it assumes there's not a None Column. Default is null / no arg.
+
+    respondent_covariates: int
+        Amount of respondent covariates. 1 by default.
+
+
+    Pystan Parameters
+    ----------
+    The following parameters are from pystan2 docs.
+    Check their doc for further explanation: https://pystan2.readthedocs.io/en/latest
+
+    iterations: int
+        Positive integer specifying how many iterations for each chain including warmup. 2000 by default
+
+    warmups: int
+        Positive integer specifying number of warmup (aka burin) iterations.
+
+    chains: int
+         Positive integer specifying number of chains. 4 by default.
+
+    algorithm: str
+        Possible values: {"NUTS", "HMC", "Fixed_param"}
+        One of the algorithms that are implemented in Stan
+        such as the No-U-Turn sampler (NUTS, Hoffman and Gelman 2011) and static HMC.
+
+    seed:
+        The seed, a positive integer for random number generation.
+        Only one seed is needed when multiple chains are used,
+        as the other chain’s seeds are generated from the first chain’s
+        to prevent dependency among random number streams.
+        By default, seed is random.randint(0, MAX_UINT)
+
+    verbose: bool
+        Indicates whether intermediate output should be piped to the console.
+        This output may be useful for debugging.
+        False by default.
+
+    control : dict, Optional
+        A dictionary of parameters to control the sampler's behavior. Default
+        values are used if control is not specified.  The following are
+        adaptation parameters for sampling algorithms.
+
+        These are parameters used in Stan with similar names:
+
+        - `adapt_engaged` : bool, default True
+        - `adapt_gamma` : float, positive, default 0.05
+        - `adapt_delta` : float, between 0 and 1, default 0.8
+        - `adapt_kappa` : float, between default 0.75
+        - `adapt_t0`    : float, positive, default 10
+
+        In addition, the algorithm HMC (called 'static HMC' in Stan) and NUTS
+        share the following parameters:
+
+        - `stepsize`: float or list of floats, positive
+        - `stepsize_jitter`: float, between 0 and 1
+        - `metric` : str, {"unit_e", "diag_e", "dense_e"}
+        - `inv_metric` : np.ndarray or str
+
+        In addition, depending on which algorithm is used, different parameters
+        can be set as in Stan for sampling. For the algorithm HMC we can set
+
+        - `int_time`: float, positive
+
+        For algorithm NUTS, we can set
+
+        - `max_treedepth` : int, positive
+
+    n_jobs: int
+        Sample in parallel. If -1 all CPUs are used.
+        If 1, no parallel computing code is used at all, which is useful for debugging.
+        -1 by default.
+
+    Returns
+    ----------
+    HMNL_Result initialized object.
+
+    """
+    do_not_include_columns = [
+        col_resp_id,
+        col_task,
+        col_alternative,
+        col_chosen,
+    ]
+    if col_none is not None:
+        do_not_include_columns.append(col_none)
+        warnings.warn(
+            "Warning... The none of the above / no-choice option is not being handled properly and not recommended for this version (it's being estimated along with the other columns), proper estimation or model will be added soon."
+        )
+
+    attributes = set()
+    covariates = []
+    for col in df.columns:
+        if col == col_none:
+            covariates.append(col)
+
+        if col in do_not_include_columns:
+            continue
+
+        covariates.append(col)
+        attribute = col.split("_", 1)[0]
+        attributes.add(attribute)
+
+    R = len(df[col_resp_id].unique())
+    S = len(df[col_task].unique())
+    C = len(df[col_alternative].unique())
+    K = len(covariates)
+    G = respondent_covariates
+    normal = np.random.normal(size=(R * S * C * K))
+    Y = np.empty(shape=(R, S), dtype=int)
+    X = np.reshape(normal, (R, S, C, K))
+    Z = np.ones((G, R))
+
+    for r in range(0, R):  # respondents
+        for s in range(0, S):  # choice scenarios
+            scenario = df[
+                (df[col_resp_id] == df[col_resp_id].unique()[r])
+                & (df[col_task] == df[col_task].unique()[s])
+            ]
+            X[r, s] = scenario.loc[:, covariates]
+            Y[r, s] = scenario[col_alternative][scenario[col_chosen] == 1]
+
+    data = {
+        "R": R,
+        "S": S,
+        "G": G,
+        "C": C,
+        "K": K,
+        "Y": Y,
+        "X": X,
+        "Z": Z,
+    }
+
+    sm = pystan.StanModel(model_code=StanModels.hmnl, model_name="HMNL")
+    if warmups is None:
+        warmups = iterations // 2
+    fit = sm.sampling(
+        data=data,
+        iter=iterations,
+        warmup=warmups,
+        chains=chains,
+        algorithm=algorithm,
+        seed=seed,
+        verbose=verbose,
+        n_jobs=n_jobs,
+    )
+    result = HMNL_Result(
+        stan_fit=fit,
+        attributes=list(attributes),
+        covariates=covariates,
+    )
+    return result
