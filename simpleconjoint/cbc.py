@@ -211,3 +211,46 @@ class HMNL_Result:
 
         self._summary = self.stan_fit.summary()
         return self._summary
+
+    def get_individual_utilities(self):
+        """
+        A function to rearrange fit summary into a new dataframe with respondent as rows and covariates as columns.
+        It also saves this data to self._individual_utilities
+        
+        Returns
+        ----------
+        Dataframe with individual utilities.
+        """
+        K = self.stan_fit.data["K"]
+        R = self.stan_fit.data["R"]
+        columns_by_k = {idx: self.covariates[idx] for idx in range(0,K)}
+        summary = self.summary if self.summary is not None else self.stan_fit.summary()
+        
+        utilities = pd.DataFrame(columns=self.covariates)
+        respondent_utilities = {}
+        k = 0
+        for i in range(0, K*R):
+            utility = summary["summary"][i][0]
+            covariate = columns_by_k[k]
+            respondent_utilities[covariate] = utility
+            k+=1
+            if k==K:
+                k=0
+                utilities = utilities.append(respondent_utilities, ignore_index=True)
+                respondent_utilities = {}
+        
+        self._individual_utilities = utilities
+        return utilities
+    
+    @property
+    def individual_utilities(self):
+        """
+        A property to get the individual utilities.
+        
+        Returns
+        ----------
+        Dataframe with individual utilities.
+        """
+        if self._individual_utilities is not None:
+            return self._individual_utilities
+        return self.get_individual_utilities()
