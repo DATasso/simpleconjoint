@@ -1,5 +1,5 @@
 import itertools
-import warnings
+import logging
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -10,6 +10,8 @@ import pystan
 import xlsxwriter
 
 from simpleconjoint.constants import StanModels
+
+logger = logging.getLogger("simpleconjoint")
 
 
 def count(
@@ -65,7 +67,8 @@ def count(
     attribute_by_column = {}
     columns_by_attribute = defaultdict(list)
     valid_columns = []
-    for col in df.columns:
+    dataframe_columns = df.columns
+    for col in dataframe_columns:
         attribute = col.split("_", 1)[0]
         if attribute in attributes:
             columns_by_attribute[attribute].append(col)
@@ -78,8 +81,8 @@ def count(
 
     missing_attributes = set(attributes) - set(columns_by_attribute.keys())
     if missing_attributes:
-        warnings.warn(
-            f"Warning... The following attributes were not found {missing_attributes}, will continue with the ones that were found"
+        logger.warn(
+            f"The following attributes were not found {missing_attributes}, will continue with the ones that were found"
         )
 
     for col in valid_columns:
@@ -361,8 +364,7 @@ class HMNL_Result:
         pandas.Dataframe of scenario with the Exp(utility) and Share of Preference.
         """
         return simulate_shares_with_individual_utilities(
-            individual_utilities=self.individual_utilities,
-            scenario=scenario
+            individual_utilities=self.individual_utilities, scenario=scenario
         )
 
 
@@ -409,7 +411,7 @@ def hmnl(
         'Chosen' by default.
 
     col_none: str
-        Name of the None option column. Optional.
+        Name of the No-Choice / None of the Above option column. Optional.
         If no arg is given, it assumes there's not a None Column. Default is null / no arg.
 
     respondent_covariates: int
@@ -428,7 +430,7 @@ def hmnl(
         Positive integer specifying number of warmup (aka burin) iterations.
 
     chains: int
-         Positive integer specifying number of chains. 4 by default.
+        Positive integer specifying number of chains. 4 by default.
 
     algorithm: str
         Possible values: {"NUTS", "HMC", "Fixed_param"}
@@ -495,8 +497,8 @@ def hmnl(
     ]
     if col_none is not None:
         do_not_include_columns.append(col_none)
-        warnings.warn(
-            "Warning... The none of the above / no-choice option is not being handled properly and not recommended for this version (it's being estimated along with the other columns), proper estimation or model will be added soon."
+        logger.warn(
+            "The none of the above / no-choice option is being estimated along with the other attribute levels columns, another model with separate estimation will be added in future versions."
         )
 
     attributes = set()
