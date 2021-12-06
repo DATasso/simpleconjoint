@@ -18,8 +18,8 @@ setup(
     long_description=long_description,
     packages=["simpleconjoint"],
     license="MIT",      
-    install_requires=['pandas', 'numpy', 'pystan==2.19.1.1', 'cython'], 
-    keywords=['python', 'conjoint', 'cbc', 'simple conjoint', 'simpleconjoint'],
+    install_requires=['Cython>=0.22', 'numpy>=1.7', 'pandas>=1.2.4', 'pystan==2.19.1.1', 'XlsxWriter>=3.0.1'], 
+    keywords=['python', 'conjoint', 'conjoint analysis', 'cbc', 'simple conjoint', 'simpleconjoint'],
     url="https://github.com/DATasso/simpleconjoint",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
