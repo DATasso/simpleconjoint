@@ -6,6 +6,21 @@ simpleconjoint is a package to perform conjoint analysis in Python.
 
 - Right now it only has functions to perform a choice-based conjoint, an example of this can be found in the [cbc jupyter notebook](notebooks/cbc.ipynb)
 
+## Dependencies and installation
+
+- PyStan
+- Numpy
+- Cython
+- Pandas
+- XlsxWriter
+
+In addition, the PyStan version used (2.19+) needs a C++14 compatible compiler. For GCC 4.9.3+ and GCC 5+ versions are up-to-date. If you have any trouble it's recommended to follow their detailed instructions about this topic: [Setting up C++ compiler](https://pystan2.readthedocs.io/en/latest/installation_beginner.html#setting-up-c-compiler)
+
+You can get the latest released version using the Python Package Index (PyPI)
+```sh
+pip install simpleconjoint
+```
+
 
 ## What is Conjoint Analysis
 
